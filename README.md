@@ -7,3 +7,5 @@ Sercan Yiğit Akbay - 456340
 
 
 This is our repository for RR Final Project
+
+Note: For project to be processed, required libraries should be installed.
