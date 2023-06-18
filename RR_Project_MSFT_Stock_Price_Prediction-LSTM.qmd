@@ -1,0 +1,508 @@
+---
+title: "Reproducing Stock Price Forecasting Using 2 Different Models in 2 Different Programming Languages"
+author: "Mustafa Sanli and Sercan Yigit Akbay"
+date: today
+format: html
+editor: visual
+---
+
+# Reproducible Research Final Project
+
+[![](microsoft.png)](https://www.microsoft.com/)
+
+## Project Description
+
+We would like to reproduce the research conducted by the students of the University of Sydney *Qiuyu Yan*. Research is focusing on the Stock Price Analysis of Netflix Prediction.
+
+Paper: [The Stock Price Analysis of Netflix Prediction](https://www.researchgate.net/publication/366297143_The_Stock_Price_Analysis_of_Netflix_Prediction)
+
+In this project, we will use a different dataset, which is the **Microsoft Corporation(MSFT)** stock price dataset. Unlike the programming language used in the research paper, we will conduct our research using the R programming language. We will obtain this dataset from the publicly available stock data download tool(<https://finance.yahoo.com/quote/MSFT/history?p=MSFT>) on the Yahoo Finance website. Using this dataset, we will apply the LSTM method mentioned in *Qiuyu Yan*'s research paper and ARIMA method to predict the prices for the next 30 days and compare our results with the findings in the paper.
+
+## Information About Microsoft Corporation(MSFT)
+
+Multinational technology giant Microsoft Corporation was established by co founders Bill Gates and Paul Allen back in 1975. Since then it has expanded extensively to become one of the worlds' biggest companies within its sphere. With interests spanning across sectors like software development to hardware manufacturing along with areas such as cloud computing and artificial intelligence it is highly influential on a global scale.
+
+Microsoft's stock is listed on the NASDAQ stock exchange under the ticker symbol "MSFT." The company has a large number of outstanding shares, and its stock price has shown significant growth over the years. Microsoft is known for its strong financial performance, consistent revenue growth, and profitability.
+
+|       Metric       |     Value      |
+|:------------------:|:--------------:|
+|      Revenue       | \$198 billion  |
+|  Operating Income  |  \$83 billion  |
+|     Net Income     | \$68.3 billion |
+| Earnings per Share |    \$10.22     |
+|   Free Cash Flow   | \$95.4 billion |
+
+The company's revenue growth is driven by its strong cloud computing business. Microsoft's cloud computing business, Azure, is the second largest cloud computing platform in the world. Azure's growth is being driven by the increasing demand for cloud computing services from businesses of all sizes.
+
+Microsoft's operating margins are high due to its efficient business model. The company has a large and loyal customer base, which allows it to negotiate favorable terms with its suppliers. Microsoft also has a strong focus on research and development, which helps it to stay ahead of the competition.
+
+Microsoft's free cash flow is significant, which gives the company the flexibility to invest in new growth opportunities. The company is investing heavily in its cloud computing business, artificial intelligence, and cybersecurity.
+
+[![](msft_stock.png)](https://finance.yahoo.com/quote/MSFT?p=MSFT)
+
+**Fig 1.** Stock Price of the Microsoft Corporation
+
+## Data
+
+We are using 3 years MSFT (Microsoft Corporation) dataset for our project. This dataset's stock prices come in several different flavors. They are:
+
+-   **Open:** Opening stock price of the day
+-   **Close:** Closing stock price of the day
+-   **High:** Highest stock price of the data
+-   **Low:** Lowest stock price of the day
+
+## Data Exploration
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+library(reticulate)
+use_python("C:\\Users\\A101\\AppData\\Local\\Programs\\Python\\Python311")
+```
+
+```{python}
+#| warning: false
+
+#Importing Necessary Libraries
+
+import os
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from keras.models import Sequential
+from keras.layers import Dense
+from keras.layers import LSTM
+from keras.layers import Dropout
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import mean_squared_error
+```
+
+```{python}
+#As our dataset, we used MSFT (Microsoft) prices from 2018-11-06 to 2023-06-16
+
+dataset=pd.read_csv("MSFT_3.csv")
+```
+
+**First 10 rows of our dataset:**
+
+```{python}
+#| echo: true
+dataset.head(10)  # First 10 rows of the data set
+```
+
+**Last 10 rows of the dataset:**
+
+```{python}
+#| echo: true
+dataset.tail(10)  # Last 10 rows of the data set
+```
+
+## Data Visualization
+
+```{python}
+#| warning: false
+#| fig-cap: "Fig 2. Stock Price Graph of the Microsoft Corporation for 5 years"
+
+plt.figure(figsize = (9,4.5))
+plt.plot(range(dataset.shape[0]),(dataset['Low']+dataset['High'])/2.0)
+plt.xticks(range(0,dataset.shape[0],500),dataset['Date'].loc[::500],rotation=45)
+plt.xlabel('Date',fontsize=18)
+plt.ylabel('Mid Price',fontsize=18)
+plt.show()
+```
+
+## Methods and Implementation
+
+### LSTM Method
+
+**Recurrent neural networks (RNNs)**
+
+-   Are a type of neural network that can process sequential data, like time series or text. They're designed to keep a memory of past inputs while producing corresponding outputs. But RNNs can have trouble capturing long-term dependencies in sequential data because of the vanishing gradient problem.
+
+-   The vanishing gradient problem happens when the gradients that are used to update the weights in an RNN become extremely small or vanish as they propagate back through the layers of the network. This problem is especially prominent in deep RNNs with multiple layers. When gradients become vanishingly small, the network has trouble updating the weights in the earlier layers effectively.
+
+**LSTM**
+
+-   To address the vanishing gradient problem, the LSTM (Long Short-Term Memory) architecture was introduced. LSTM networks are a type of RNN that incorporates specialized memory cells to better capture long-range dependencies in sequential data. These memory cells consist of various gates that control the flow of information within the network, including the ability to selectively retain or forget information from previous time steps. By explicitly managing this information flow, LSTMs can mitigate the vanishing gradient problem and effectively capture important patterns and dependencies over longer sequences. This makes them well-suited for tasks involving temporal dynamics, like language modeling, speech recognition, and time series forecasting.
+
+-   In short, RNNs are neural networks that can process sequential data, but they can struggle to capture long-term dependencies due to the vanishing gradient problem. LSTM networks are a type of RNN that addresses this problem by incorporating specialized memory cells. This makes LSTMs well-suited for tasks involving temporal dynamics.
+
+```{python}
+#Splitting data into two groups. One for training data, other for testing data.
+
+dataset_train=dataset.iloc[-1000:-100]
+dataset_test=dataset.iloc[-100:]
+print(dataset_train.columns.tolist())
+print(dataset_test.columns.tolist())
+```
+
+#### Training Dataset
+
+```{python}
+#| echo: false
+
+trainset = dataset_train.iloc[:,1:2].values #Open
+
+```
+
+**Min-Max Scaler**
+
+-   MinMaxScaler is a data normalization technique commonly used in machine learning and data preprocessing. Its purpose is to rescale the values of a dataset so that they fall within a specific range, typically between 0 and 1. The scaling process involves subtracting the minimum value from each data point and then dividing it by the range. This normalization ensures that all the data points are proportionally adjusted to fit within the desired range.
+
+```{python}
+sc = MinMaxScaler(feature_range = (0,1))
+training_scaled = sc.fit_transform(trainset)
+print(training_scaled[0:5])
+print(len(training_scaled))
+```
+
+```{python}
+#Adjusting
+
+x_train = []
+y_train = []
+```
+
+**Here we use x_train and y_train as;**
+
+-   x_train is data during the past 60 days as training.
+-   y_data is the following data of the day after the last day of x_train has been reached.
+
+```{python}
+for i in range(60,len(training_scaled)):
+    x_train.append(training_scaled[i-60:i, 0])
+    y_train.append(training_scaled[i,0])
+x_train,y_train = np.array(x_train),np.array(y_train)
+print(x_train.shape,y_train.shape)
+```
+
+The provided code performs a reshaping operation on the input data x_train to convert it into a 3D tensor with specific dimensions. This reshaping is required when working with Long Short-Term Memory (LSTM) neural networks.
+
+The purpose of this reshaping step is to ensure that the input data is in a format suitable for LSTM models. The LSTM models expect the input data to have a specific structure characterized by three dimensions: samples, time steps, and features.
+
+-   "*Samples*" refers to the number of input sequences or data points in the dataset.
+-   "*Time steps*" refers to the number of time steps or sequential elements in each input sequence.
+-   "*Features*" refers to the number of variables or features present at each time step of the input sequence.
+
+By reshaping the input data into this 3D tensor format, the LSTM model can effectively process the sequential information and capture the temporal dependencies within the data.
+
+Reshaping the data in this manner is crucial because LSTM models are specifically designed to handle sequential data and learn patterns over time. The 3D tensor format ensures that the LSTM model can interpret and utilize the sequential nature of the input data during training and prediction.
+
+This reshaping step is essential to ensure that the LSTM model receives the input data in the correct format and can effectively learn and extract meaningful information from the sequential patterns within the data.
+
+```{python}
+x_train = np.reshape(x_train, (x_train.shape[0],x_train.shape[1],1))
+print('(samples, time steps, features) =',x_train.shape)
+```
+
+```{python}
+#Adding regressor
+
+regressor = Sequential()
+regressor.add(LSTM(units = 50,return_sequences = True,input_shape = (x_train.shape[1],1)))
+regressor.add(Dropout(0.2))
+regressor.add(LSTM(units = 50,return_sequences = True))
+regressor.add(Dropout(0.2))
+regressor.add(LSTM(units = 50,return_sequences = True))
+regressor.add(Dropout(0.2))
+regressor.add(LSTM(units = 50))
+regressor.add(Dropout(0.2))
+regressor.add(Dense(units = 1))
+```
+
+```{python}
+regressor.compile(optimizer = 'adam',loss = 'mean_squared_error')
+
+regressor.fit(x_train,y_train,epochs =300, batch_size = 32)
+```
+
+#### Testing Dataset
+
+```{python}
+real_stock_price = dataset_test.iloc[:,1:2].values
+
+dataset_total = pd.concat((dataset_train['Open'],dataset_test['Open']),axis = 0)
+```
+
+**1. The input data consists of the last 60 training data points and the true test data, enabling the model to capture recent patterns and improve predictions.**
+
+```{python}
+print(len(dataset_total),len(dataset_test))
+inputs = dataset_total[len(dataset_total)-len(dataset_test)-60:].values
+print(inputs.shape)
+```
+
+-   In the case of using an LSTM model, this reshaping step may be required when the input data consists of a single feature or time series. The LSTM model expects a 3D input shape of (n_samples, n_time_steps, n_features). However, when there is only one feature, the shape remains unchanged since there is no need for additional feature dimensions.
+
+```{python}
+inputs = inputs.reshape(-1,1)
+print(inputs.shape)
+
+#sc = MinMaxScaler(feature_range = (0,1))
+inputs = sc.transform(inputs)
+print(inputs.shape)
+```
+
+```{python}
+x_test = []
+for i in range(60,len(inputs)):
+    x_test.append(inputs[i-60:i,0])
+x_test = np.array(x_test)
+print(x_test.shape)
+
+x_test = np.reshape(x_test, (x_test.shape[0],x_test.shape[1],1))
+print(x_test.shape)
+```
+
+```{python}
+predicted_price = regressor.predict(x_test)
+```
+
+```{python}
+predicted_price = sc.inverse_transform(predicted_price)
+print(predicted_price.shape)
+```
+
+```{python}
+#| fig-cap: "Fig 3. Microsoft Corporation Stock Price Prediction with True Test Data"
+
+
+plt.plot(real_stock_price,color = 'red', label = 'Real Price')
+plt.plot(predicted_price, color = 'blue', label = 'Predicted Price')
+plt.title('MSFT Stock Price Prediction')
+plt.xlabel('Time')
+plt.ylabel('MSFT Stock Price')
+plt.xlim(0,100)  
+plt.ylim(0,1200) 
+plt.legend()
+plt.show()
+```
+
+**2. The input data consists of only the last 60 data points from the training dataset, without including the true test data.**
+
+```{python}
+inputs = np.array(dataset_train['Open'][-60:])
+new_predicted_price=[]
+for i in range(100):
+    x = np.reshape(inputs, (1,60,1))
+    pred = regressor.predict(x)
+    inputs = np.append(inputs, pred)
+    inputs = inputs[1:]
+    new_predicted_price+=[pred.reshape(-1)]
+```
+
+```{python}
+new_predicted_price = sc.inverse_transform(np.array(new_predicted_price))
+print(new_predicted_price.shape)
+```
+
+```{python}
+#| fig-cap: "Fig 4. Microsoft Corporation Stock Price Prediction without True Test Data"
+
+plt.plot(real_stock_price,color = 'red', label = 'Real Price')
+plt.plot(new_predicted_price, color = 'blue', label = 'New Predicted Price')
+plt.title('MSFT Stock Price Prediction')
+plt.xlabel('Time')
+plt.ylabel('MSFT Stock Price')
+plt.xlim(0,100)  
+plt.ylim(0,1200) 
+plt.legend()
+plt.show()
+```
+
+```{python}
+# Calculate the errors
+errors = new_predicted_price - real_stock_price
+
+# Calculate Root Mean Squared Error (RMSE)
+rmse = np.sqrt(mean_squared_error(real_stock_price, new_predicted_price))
+print("Root Mean Squared Error (RMSE):", rmse)
+
+# Calculate Mean Error (ME)
+me = np.mean(errors)
+print("Mean Error (ME):", me)
+
+# Calculate Mean Absolute Percentage Error (MAPE)
+mape = np.mean(np.abs(errors / real_stock_price)) * 100
+print("Mean Absolute Percentage Error (MAPE):", mape)
+
+# Calculate Mean Percentage Error (MPE)
+mpe = np.mean(errors / real_stock_price) * 100
+print("Mean Percentage Error (MPE):", mpe)
+
+# Compare predicted and actual values
+comparison = np.column_stack((real_stock_price, new_predicted_price, errors))
+print("Comparison: Actual, Predicted, Error")
+print(comparison)
+```
+
+### ARIMA Method
+
+ARIMA (AutoRegressive Integrated Moving Average) is a widely used forecasting method in time series analysis. It is a statistical model that combines autoregressive (AR), differencing (I), and moving average (MA) components.
+
+The ARIMA method is commonly used for forecasting time series data and can handle both trended and stationary data. It is especially useful when the data has a linear relationship with its past values, and when there are no significant outliers or seasonality patterns.
+
+By fitting an ARIMA model to historical data, it can be used to make future predictions. The model estimates the parameters based on the provided data and uses them to generate forecasts for future time points.
+
+ARIMA forecasting has been widely applied in various domains, including finance, economics, stock market analysis, demand forecasting, and weather forecasting, among others. It provides a flexible and powerful approach for modeling and predicting time series data.
+
+```{r}
+#| warning: false
+
+
+## Importing Required Packages for predicting data and running a different model with different Language
+if (!require("quantmod")) install.packages("quantmod")
+if (!require("tseries")) install.packages("tseries")
+if (!require("timeSeries")) install.packages("timeSeries")
+if (!require("forecast")) install.packages("forecast")
+if (!require("R6")) install.packages("R6")
+
+library(quantmod)
+library(tseries)
+library(timeSeries)
+library(forecast)
+```
+
+```{r}
+## Importing the same Dataset 
+getSymbols('MSFT', from = '2018-11-06', to = '2023-06-16')
+View(MSFT)
+```
+
+```{r}
+# Showing a brief chart to get a glimpse
+chartSeries(MSFT, subset = 'last 12 months', type = 'auto')
+```
+
+```{r}
+## Assigning columns of microsoft dataset
+Open_prices = MSFT[,1]
+High_prices = MSFT[,2]
+Low_prices = MSFT[,3]
+Close_prices = MSFT[, 4]
+Volume_prices = MSFT[,5]
+Adjusted_prices = MSFT[,6]
+
+par(mfrow = c(2,3))
+```
+
+```{r}
+#| layout-ncol: 6
+
+# Plotting stock movements through given period
+plot(Open_prices, main = 'Opening Price of Stocks (Over a given period)')
+plot(High_prices, main = 'Highest Price of Stocks (Over a given period)')
+plot(Low_prices, main = 'Lowest Price of Stocks (Over a given period)')
+plot(Close_prices, main = 'Closing Price of Stocks (Over a given period)')
+plot(Volume_prices, main = 'Volume of Stocks (Over a given period)')
+plot(Adjusted_prices, main = 'Adjusted Price of Stocks (Over a given period)')
+
+Predic_Price = Adjusted_prices
+```
+
+**\######## Finding the Linear Relation between observations \########**
+
+```{r}
+
+par(mfrow = c(1,2))
+Acf(Predic_Price, main = 'ACF for differenced Series')
+Pacf(Predic_Price, main = 'PACF for differenced Series ', col = '#cc0000')
+
+# Printing ADF test statistics
+print(adf.test(Predic_Price))
+```
+
+**\################### Prediction of Return \##########################**
+
+```{r}
+return_MSFT <- 100*diff(log(Predic_Price))
+
+MSFT_return_train <- return_MSFT[1:(0.9*length(return_MSFT))]
+MSFT_return_test <- return_MSFT[(0.9*length(return_MSFT)+1):length(return_MSFT)]
+
+auto.arima(MSFT_return_train, seasonal = FALSE)
+
+# Fitting the best ARIMA model for prediction
+fit <- Arima(MSFT_return_train, order = c(1,0,0))
+
+preds <- predict(fit, n.ahead = (length(return_MSFT) - (0.9*length(return_MSFT))))$pred
+```
+
+**\################## Forecasting Predicted Result \##################**
+
+```{r}
+# After obtaining the best model, we use stationary condition to predict stock price of MSFT.
+test_forecast <- forecast(fit,h = 15)
+
+# Create a time series object from our forecast
+forecast_series <- ts(test_forecast$mean, start = end(MSFT_return_train)+1)
+
+# Converting our test set to a time series object
+test_series <- ts(MSFT_return_test, start = end(MSFT_return_train)+1)
+
+# Plotting the forecast
+par(mfrow = c(1,1))
+plot(forecast_series, main = "ARIMA forecast and actual prices for MSFT Stock", type='l')
+
+# Adding the actual prices to the plot
+lines(test_series, col = "blue")
+
+# Adding a legend
+legend("topleft", legend=c("Predicted", "Actual"), col=c("black", "blue"), lty = 1)
+
+# To test accuracy of the forecast, we use test statistics to obtain errors.
+accuracy(preds, MSFT_return_test)
+
+```
+
+## Conclusion
+
+We tried to reproduce stock price forecasting mechanics with two different programming languages with different models to compare them with each other. Data set is different from the proposed paper. Rather than 'Netflix', we took 'Microsoft' stock price data as our data set.
+
+![](msft_stock_price_final.png)
+
+In ARIMA model we use stationarity to forecast future prices.
+
+-   This is the stationary time series.
+-   We needed to shape that in order to get an ARIMA forecast.
+-   To get a closer look in our forecast, we zoom in into the upper band and lower band (Confidence interval) of the forecast
+
+![](arima_msft_stock_price_final.png)
+
+**Forecast Error Test Statistics (Accuracy Test) for ARIMA :**
+
+Mean Error (ME): 0.2395757 Root Mean Squared Error (RMSE): 1.793116 Mean Absolute Error (MAE): 1.365154 Mean Percentage Error (MPE): 104.9737 Mean Absolute Percentage Error (MAPE): 108.57
+
+![](msft_stock_price_final_2.png)
+
+To get a better view
+
+![](msft_stock_price_final_3.png)
+
+**Forecast Error Test Statistics (Accuracy Test) for LSTM:**
+
+Root Mean Squared Error (RMSE): 1.4619603145652468 Mean Error (ME): 43.29817734085939 Mean Absolute Percentage Error (MAPE): 34.32641864748168 Mean Percentage Error (MPE): 18.967418915186027
+
+**Comparing Results:**
+
+-   Mean Error (ME): The ARIMA model has a ME of 0.24, while the LSTM model has a ME of 43.3. This indicates that, on average, the LSTM model's predictions are deviating more from the actual values than the ARIMA model.
+-   Root Mean Squared Error (RMSE): The ARIMA model has a RMSE of 1.79, while the LSTM model's RMSE is 1.46, which is actually lower than that of the ARIMA model. This suggests that the LSTM model, when considering both small and large errors, is performing better than the ARIMA model.
+-   Mean Percentage Error (MPE): The ARIMA model has an MPE of 104.97% while the LSTM model has an MPE of 18.97%. This suggests that the ARIMA model is overestimating the actual values by about 105%, on average, while the LSTM model is overestimating by about 19%.
+-   Mean Absolute Percentage Error (MAPE): The ARIMA model has a MAPE of 108.57%, while the LSTM model's MAPE is 34.33%. This suggests that, on average, the ARIMA model's predictions deviate from the actual values by about 108.57% in absolute terms, while the LSTM model's predictions deviate by about 34.33%.
+
+In general, LSTM model has better forecasting operation value than ARIMA model. It is the expected result since LSTM models are generally much more preferable than old model such as ARIMA but this is not the most important distinction.Distinction is that ARIMA models consider the lags of the given component which is the data set. These lags are constructed in a way that we can generate forecasts. In LSTM which is a neural network, it recognises long-term and short-term patterns to forecast future price fluctuations. It is much more dynamic and appropiate when it comes to forecasting patterns through-out a dataset.
+
+## References
+
+-   Microsoft Corporation. (2023, February 2). Investor Relations. https://www.microsoft.com/en-us/investor
+
+-   Yahoo Finance, Microsoft Corporation, https://finance.yahoo.com/quote/MSFT?p=MSFT&.tsrc=fin-srch
+
+-   Stock Market Predictions with LSTM in Python, https://www.datacamp.com/tutorial/lstm-python-stock-market
+
+-   Bao, W., Yue, J., & Rao, Y. (2017). A deep learning framework for financial time series using stacked autoencoders and long-short term memory. PloS one, 12(7), e0180944.
+
+-   Fischer, T., & Krauss, C. (2018). Deep learning with long short-term memory networks for financial market predictions. European Journal of Operational Research, 270(2), 654-669.
+
+-   Hyndman, R.J., and Athanasopoulos, G. (2018) Forecasting: principles and practice, 2nd edition, OTexts: Melbourne, Australia. \[Online\] Available at: https://otexts.com/fpp2/accuracy.html
+
+-   Pfaff, B. (2008) Analysis of Integrated and Cointegrated Time Series with R, 2nd edition, Springer: New York, USA.
