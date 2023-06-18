@@ -4,3 +4,6 @@ Reproducible Research final project repository
 Mustafa Sanli - 436656
 
 Sercan Yiğit Akbay - 456340
+
+
+This is our repository for RR Final Project
